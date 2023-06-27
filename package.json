@@ -1,0 +1,8 @@
+{
+  "name": "minesweeper-nojs",
+  "module": "server.ts",
+  "type": "module",
+  "devDependencies": {
+    "bun-types": "^0.4.0"
+  }
+}
