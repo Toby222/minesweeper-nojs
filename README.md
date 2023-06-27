@@ -9,5 +9,5 @@ just dev
 To run:
 
 ```bash
-just build
+just run
 ```
