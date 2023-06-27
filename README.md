@@ -1,15 +1,13 @@
 # minesweeper-nojs
 
-To install dependencies:
+To automatically compile while developing:
 
 ```bash
-bun install
+just dev
 ```
 
 To run:
 
 ```bash
-bun run server.ts
+just build
 ```
-
-This project was created using `bun init` in bun v0.4.3. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
