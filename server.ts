@@ -10,9 +10,14 @@ const HEADERS_STYLESHEET = {
     "Content-Type": "text/css",
   },
 };
+const HEADERS_FAVICON = {
+  headers: {
+    "Content-Type": "image/x-icon",
+  },
+};
 
 async function htmlDoc(body: string, head: string): Promise<string> {
-  return `<!DOCTYPE html><html><head><link rel=stylesheet href=style.css>${head}</head><body>${body}</body></html>`
+  return `<!DOCTYPE html><html><head><link rel=stylesheet href=style.css><link rel=icon type="image/x-icon" href=favicon.ico>${head}</head><body>${body}</body></html>`
 }
 
 async function createBoard(width: number, height: number, mines: number): Promise<string> {
@@ -98,8 +103,7 @@ Bun.serve({
     const url = new URL(request.url);
 
     if (url.pathname === "/favicon.ico") {
-      // TODO: Add favicon
-      return new Response("Not found", { status: 404, statusText: "Not found" });
+      return new Response(await Bun.file("favicon.ico").arrayBuffer(), FAVICON_STYLESHEET);
     }
 
     if (url.pathname === "/style.css") {
