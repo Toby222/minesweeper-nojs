@@ -84,7 +84,7 @@ async function createBoard(width: number, height: number, mines: number): Promis
     }
     inputs += `<input id=input_${idx} type=checkbox ${fieldIsMine ? "data-mine" : "data-safe"}></input>`;
     style += `#input_${idx}:checked ~ main label[for="input_${idx}"]::before { content: "${fieldIsMine ? "X" : getNeighbors(idx)}"; }\n`
-           + `#input_${idx}:checked ~ main label[for="input_${idx}"] { pointer-events: none; }`;
+           + `#input_${idx}:checked ~ main label[for="input_${idx}"] { pointer-events: none; }\n`;
   }
   table += "</tr></tbody></table>"
   style += "</style>"
