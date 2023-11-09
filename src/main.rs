@@ -238,12 +238,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loop {
         let (stream, _) = listener.accept().await?;
 
+        let io = hyper_util::rt::TokioIo::new(stream);
+
         // Spawn a tokio task to serve multiple connections concurrently
         tokio::task::spawn(async move {
             // Finally, we bind the incoming connection to our `hello` service
             if let Err(err) = http1::Builder::new()
                 // `service_fn` converts our function in a `Service`
-                .serve_connection(stream, service_fn(respond))
+                .serve_connection(io, service_fn(respond))
                 .await
             {
                 println!("Error serving connection: {err:?}");

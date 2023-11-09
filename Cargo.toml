@@ -1,29 +1,33 @@
 [package]
 name = "minesweeper-nojs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [profile.release]
 strip = "symbols"
-lto = "thin"
-opt-level = 3
+lto = true
+opt-level = "s"
 codegen-units = 1
 
 [profile.dev.package."*"]
-opt-level = 3
-codegen-units = 1
-[profile.release.package."*"]
-opt-level = 3
+opt-level = "s"
 codegen-units = 1
 [profile.dev.build-override]
-opt-level = 3
+opt-level = "s"
 codegen-units = 1
 
-[dependencies]
-url = "2.4.0"
+[profile.release.package."*"]
+opt-level = "s"
+codegen-units = 1
+[profile.release.build-override]
+opt-level = "s"
+codegen-units = 1
+
+[dependencies.url]
+version = "2.4.0"
 
 [dependencies.hyper]
-version = "1.0.0-rc.3"
+version = "1.0.0-rc.4"
 features = ["full"]
 
 [dependencies.tokio]
@@ -31,8 +35,7 @@ version = "1"
 features = ["full"]
 
 [dependencies.http-body-util]
-version = "0.1.0-rc.2"
+version = "0.1.0-rc.3"
 
-[profile.release.build-override]
-opt-level = 3
-codegen-units = 1
+[dependencies.hyper-util]
+git = "https://github.com/hyperium/hyper-util.git"
