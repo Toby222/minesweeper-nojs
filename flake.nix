@@ -2,47 +2,83 @@
   description = "A Nix-flake-based Rust development environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    rust-overlay.url = "github:oxalica/rust-overlay";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, rust-overlay }:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      treefmt-nix,
+      fenix,
+    }:
     let
-      overlays = [
-        rust-overlay.overlays.default
-        (final: prev: {
-          rustToolchain =
-            let
-              rust = prev.rust-bin;
-            in
-            if builtins.pathExists ./rust-toolchain.toml then
-              rust.fromRustupToolchainFile ./rust-toolchain.toml
-            else if builtins.pathExists ./rust-toolchain then
-              rust.fromRustupToolchainFile ./rust-toolchain
-            else
-              rust.stable.latest.default;
-        })
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
       ];
-      supportedSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
-      forEachSupportedSystem = f: nixpkgs.lib.genAttrs supportedSystems (system: f {
-        pkgs = import nixpkgs { inherit overlays system; };
-      });
+      forEachSupportedSystem =
+        f:
+        nixpkgs.lib.genAttrs supportedSystems (
+          system:
+          f (
+            let
+              pkgs = import nixpkgs { inherit system; };
+              fenix' = (import fenix { inherit system pkgs; });
+              toolchain = fenix'.complete.withComponents (
+                (builtins.fromTOML (builtins.readFile ./rust-toolchain.toml)).toolchain.components
+              );
+            in
+            {
+              inherit pkgs toolchain;
+            }
+          )
+        );
     in
     {
-      devShells = forEachSupportedSystem ({ pkgs }: {
-        default = pkgs.mkShell {
-          packages = with pkgs; [
-            mold
-            clang
-            rustToolchain
-            openssl
-            pkg-config
-            cargo-deny
-            cargo-edit
-            cargo-watch
-            rust-analyzer
-          ];
-        };
-      });
+      formatter = forEachSupportedSystem (
+        { pkgs, ... }: (treefmt-nix.lib.evalModule pkgs ./treefmt.nix).config.build.wrapper
+      );
+      devShells = forEachSupportedSystem (
+        { pkgs, toolchain }:
+        {
+          default = pkgs.mkShell {
+            nativeBuildInputs = [ toolchain ];
+            buildInputs = [ toolchain ];
+          };
+        }
+      );
+      packages = forEachSupportedSystem (
+        { pkgs, toolchain }:
+        {
+          default = (
+            let
+              manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
+              rustPlatform = pkgs.makeRustPlatform {
+                cargo = toolchain;
+                rustc = toolchain;
+              };
+            in
+            rustPlatform.buildRustPackage {
+              pname = manifest.name;
+              version = manifest.version;
+              cargoLock.lockFile = ./Cargo.lock;
+              src = pkgs.lib.cleanSource ./.;
+            }
+          );
+        }
+      );
     };
 }

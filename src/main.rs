@@ -23,7 +23,7 @@ use tokio::net::TcpListener;
 // Pseudorandom number generator from the "Xorshift RNGs" paper by George Marsaglia.
 //
 // https://github.com/rust-lang/rust/blob/1.55.0/library/core/src/slice/sort.rs#L559-L573
-pub fn random_numbers() -> impl Iterator<Item = usize> {
+pub fn random_numbers() -> std::iter::RepeatWith<impl FnMut() -> usize> {
     let mut random = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or(Duration::new(0, 0))
