@@ -35,11 +35,15 @@
           system:
           f (
             let
-              pkgs = import nixpkgs { inherit system; };
+              pkgs = import nixpkgs {
+                inherit system;
+                overlays = [ fenix.overlays.default ];
+              };
               fenix' = (import fenix { inherit system pkgs; });
-              toolchain = fenix'.complete.withComponents (
-                (builtins.fromTOML (builtins.readFile ./rust-toolchain.toml)).toolchain.components
-              );
+              toolchain = fenix'.fromToolchainFile {
+                file = ./rust-toolchain.toml;
+                sha256 = "sha256-opUgs6ckUQCyDxcB9Wy51pqhd0MPGHUVbwRKKPGiwZU=";
+              };
             in
             {
               inherit pkgs toolchain;
