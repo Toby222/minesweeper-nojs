@@ -1,5 +1,4 @@
-mod html_prealloc_sizes;
-
+// If changed, also change error message
 const MAX_SIZE: usize = 50;
 const PORT: u16 = 55782;
 const STYLESHEET: &[u8; 776] = include_bytes!("../style.css");
@@ -30,11 +29,12 @@ pub fn random_numbers() -> std::iter::RepeatWith<impl FnMut() -> usize> {
         .as_nanos() as usize;
     std::iter::repeat_with(move || {
         random ^= random << 13;
-        random ^= random >> 17;
-        random ^= random << 5;
+        random ^= random >> (if usize::BITS <= 32 { 17 } else { 7 });
+        random ^= random << (if usize::BITS <= 32 { 5 } else { 17 });
         random
     })
 }
+
 fn not_found() -> Response<Full<Bytes>> {
     Response::builder()
         .status(StatusCode::NOT_FOUND)
@@ -65,7 +65,15 @@ async fn favicon() -> Response<Full<Bytes>> {
         .unwrap()
 }
 
+#[derive(Default, Clone, Copy)]
+struct Field {
+    mine: bool,
+    open: bool,
+    neighbor_mines: u8,
+}
+
 async fn create_board(width: usize, height: usize, mines: usize) -> Response<Full<Bytes>> {
+    let start = SystemTime::now();
     if width == 0 || height == 0 || mines == 0 {
         Response::builder()
             .status(StatusCode::RANGE_NOT_SATISFIABLE)
@@ -76,7 +84,7 @@ async fn create_board(width: usize, height: usize, mines: usize) -> Response<Ful
         Response::builder()
             .status(StatusCode::RANGE_NOT_SATISFIABLE)
             .header("Cache-Control", "no-store")
-            .body(Full::new(Bytes::from_static(b"FIELD TOO BIG")))
+            .body(Full::new(Bytes::from_static(b"FIELD TOO BIG (MAX 50)")))
             .unwrap()
     } else if mines >= width * height {
         Response::builder()
@@ -87,86 +95,94 @@ async fn create_board(width: usize, height: usize, mines: usize) -> Response<Ful
             )))
             .unwrap()
     } else {
-        let mut fields = vec![false; width * height];
+        let mut fields = vec![Field::default(); width * height];
         let mut safe_indices = (0..width * height).collect::<Vec<_>>();
 
-        for (placed_mines, random) in (0..mines).zip(random_numbers()) {
-            let mine_index = safe_indices.swap_remove(random % ((width * height) - placed_mines));
-
-            fields[mine_index] = true;
-        }
-
-        let get_neighbors = |idx: usize| -> u8 {
-            let mut neighbor_count = 0;
+        let get_neighbor_indices = |idx: usize| -> Vec<usize> {
             let left_edge = (idx % width) == 0;
             let top_edge = idx < width;
             let bottom_edge = idx >= ((height - 1) * width);
             let right_edge = (idx % width) == (width - 1);
 
-            if !left_edge && fields[idx - 1] {
-                neighbor_count += 1;
+            let mut indices = Vec::with_capacity(8);
+
+            if !left_edge {
+                indices.push(idx - 1);
             }
-            if !left_edge && !top_edge && fields[idx - 1 - width] {
-                neighbor_count += 1;
+            if !left_edge && !top_edge {
+                indices.push(idx - 1 - width);
             }
-            if !left_edge && !bottom_edge && fields[idx - 1 + width] {
-                neighbor_count += 1;
+            if !left_edge && !bottom_edge {
+                indices.push(idx - 1 + width);
             }
 
-            if !right_edge && fields[idx + 1] {
-                neighbor_count += 1;
+            if !right_edge {
+                indices.push(idx + 1);
             }
-            if !right_edge && !top_edge && fields[idx + 1 - width] {
-                neighbor_count += 1;
+            if !right_edge && !top_edge {
+                indices.push(idx + 1 - width);
             }
-            if !right_edge && !bottom_edge && fields[idx + 1 + width] {
-                neighbor_count += 1;
-            }
-
-            if !top_edge && fields[idx - width] {
-                neighbor_count += 1;
+            if !right_edge && !bottom_edge {
+                indices.push(idx + 1 + width);
             }
 
-            if !bottom_edge && fields[idx + width] {
-                neighbor_count += 1;
+            if !top_edge {
+                indices.push(idx - width);
             }
-            neighbor_count
+
+            if !bottom_edge {
+                indices.push(idx + width);
+            }
+            indices
         };
+
+        for (placed_mines, random) in (0..mines).zip(random_numbers()) {
+            let mine_index = safe_indices.swap_remove(random % ((width * height) - placed_mines));
+
+            fields[mine_index].mine = true;
+            for neighbor_index in get_neighbor_indices(mine_index) {
+                fields[neighbor_index].neighbor_mines += 1;
+            }
+        }
+
+        // SAFETY: random_numbers returns a RepeatWith, which will always have a next element
+        let mut open_indices = Vec::with_capacity(fields.len() - mines);
+        open_indices.push(
+            safe_indices
+                [unsafe { random_numbers().next().unwrap_unchecked() } % safe_indices.len()],
+        );
+        while let Some(open_index) = open_indices.pop() {
+            if !fields[open_index].open {
+                fields[open_index].open = true;
+                if fields[open_index].neighbor_mines == 0 {
+                    open_indices.append(&mut get_neighbor_indices(open_index));
+                }
+            }
+        }
 
         // Can't figure out how to do regression, otherwise I'd make these into functions to calculate the
         // allocated size based on width and height
-        let sizes = html_prealloc_sizes::get_sizes(width, height);
+        let mut style_string = String::new();
+        let mut inputs_string = String::new();
+        let mut table_string = String::new();
 
-        let mut style_string = String::with_capacity(sizes.style);
-        let mut inputs_string = String::with_capacity(sizes.inputs);
-        let mut table_string = String::with_capacity(sizes.table);
-
-        for (field_index, &field_is_mine) in fields.iter().enumerate() {
+        for (field_index, &field) in fields.iter().enumerate() {
             table_string += format!("<td><label for=input_{field_index}></label></td>").as_str();
             if (field_index % width) == (width - 1) && field_index != width * height - 1 {
                 table_string += "</tr><tr>";
             }
 
             inputs_string += format!(
-                "<input id=input_{field_index} type=checkbox data-{}></input>",
-                if field_is_mine { "mine" } else { "safe" }
+                "<input id=input_{field_index} type=checkbox data-{}{}></input>",
+                if field.mine { "mine" } else { "safe" },
+                if field.open { " checked" } else { "" },
             )
             .as_str();
 
             style_string += format!(
                 "#input_{field_index}:checked ~ main label[for=\"input_{field_index}\"]::before {{ content: \"{}\"; }}\n#input_{field_index}:checked ~ main label[for=\"input_{field_index}\"] {{ pointer-events: none; }}",
-                if field_is_mine { "X".into() } else { get_neighbors(field_index).to_string() })
+                if field.mine { "X".into() } else { field.neighbor_mines.to_string() })
             .as_str();
-        }
-
-        if style_string.capacity() > sizes.style {
-            dbg!(style_string.capacity(), style_string.len(), sizes.style);
-        }
-        if inputs_string.capacity() > sizes.inputs {
-            dbg!(inputs_string.capacity(), inputs_string.len(), sizes.inputs);
-        }
-        if table_string.capacity() > sizes.table {
-            dbg!(table_string.capacity(), table_string.len(), sizes.table);
         }
 
         let response_string = format!(
@@ -176,19 +192,16 @@ async fn create_board(width: usize, height: usize, mines: usize) -> Response<Ful
             table_string
         );
 
-        // To debug sizes for allocation
-        // let response_string = format!(
-        //     "{{\"style\":{},\"inputs\":{},\"table\":{}}}",
-        //     style_string.len(),
-        //     inputs_string.len(),
-        //     table_string.len()
-        // );
-
+        let time = SystemTime::now()
+            .duration_since(start)
+            .map(|x| x.as_nanos().to_string())
+            .unwrap_or("Filed to track time".to_string());
+        dbg!(time);
         Response::builder()
             .status(StatusCode::OK)
             .header("Cache-Control", "no-store")
             .body(Full::from(response_string))
-            .unwrap()
+            .expect("Failed to respond?")
     }
 }
 
