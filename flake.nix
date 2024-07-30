@@ -42,7 +42,7 @@
               fenix' = (import fenix { inherit system pkgs; });
               toolchain = fenix'.fromToolchainFile {
                 file = ./rust-toolchain.toml;
-                sha256 = "sha256-Ngiz76YP4HTY75GGdH2P+APE/DEIx2R/Dn+BwwOyzZU=";
+                sha256 = "sha256-6eN/GKzjVSjEhGO9FhWObkRFaE1Jf+uqMSdQnb8lcB4=";
               };
             in
             {
