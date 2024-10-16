@@ -195,7 +195,7 @@ async fn create_board(width: usize, height: usize, mines: usize) -> Response<Ful
         let time = SystemTime::now()
             .duration_since(start)
             .map(|x| x.as_nanos().to_string())
-            .unwrap_or("Filed to track time".to_string());
+            .unwrap_or("Failed to track time".to_string());
         dbg!(time);
         Response::builder()
             .status(StatusCode::OK)
