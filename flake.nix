@@ -8,11 +8,6 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    fenix = {
-      url = "github:nix-community/fenix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs =
@@ -20,7 +15,6 @@
       self,
       nixpkgs,
       treefmt-nix,
-      fenix,
     }:
     let
       supportedSystems = [
@@ -37,16 +31,10 @@
             let
               pkgs = import nixpkgs {
                 inherit system;
-                overlays = [ fenix.overlays.default ];
-              };
-              fenix' = (import fenix { inherit system pkgs; });
-              toolchain = fenix'.fromToolchainFile {
-                file = ./rust-toolchain.toml;
-                sha256 = "sha256-VZZnlyP69+Y3crrLHQyJirqlHrTtGTsyiSnZB8jEvVo=";
               };
             in
             {
-              inherit pkgs toolchain;
+              inherit pkgs;
             }
           )
         );
@@ -56,24 +44,21 @@
         { pkgs, ... }: (treefmt-nix.lib.evalModule pkgs ./treefmt.nix).config.build.wrapper
       );
       devShells = forEachSupportedSystem (
-        { pkgs, toolchain }:
+        { pkgs }:
         {
           default = pkgs.mkShell {
-            nativeBuildInputs = [ toolchain ];
-            buildInputs = [ toolchain ];
+            # nativeBuildInputs = [ pkgs.rustPlatform ];
+            # buildInputs = [ pkgs.rustPlatform ];
           };
         }
       );
       packages = forEachSupportedSystem (
-        { pkgs, toolchain }:
+        { pkgs }:
         {
           default = (
             let
               manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
-              rustPlatform = pkgs.makeRustPlatform {
-                cargo = toolchain;
-                rustc = toolchain;
-              };
+              rustPlatform = pkgs.rustPlatform;
             in
             rustPlatform.buildRustPackage {
               pname = manifest.name;

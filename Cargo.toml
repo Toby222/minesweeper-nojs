@@ -1,6 +1,6 @@
 [package]
 name = "minesweeper-nojs"
-version = "1.4.5"
+version = "1.4.8"
 edition = "2021"
 
 [profile.release]
