@@ -180,7 +180,7 @@ async fn create_board(width: usize, height: usize, mines: usize) -> Response<Ful
             .as_str();
 
             style_string += format!(
-                "#input_{field_index}:checked ~ main label[for=\"input_{field_index}\"]::before {{ content: \"{}\"; }}\n#input_{field_index}:checked ~ main label[for=\"input_{field_index}\"] {{ pointer-events: none; }}",
+                "#input_{field_index}:checked ~ main label[for=\"input_{field_index}\"]::before {{ content: \"{}\"; }} #input_{field_index}:checked ~ main label[for=\"input_{field_index}\"] {{ pointer-events: none; }}",
                 if field.mine { "X".into() } else { field.neighbor_mines.to_string() })
             .as_str();
         }
