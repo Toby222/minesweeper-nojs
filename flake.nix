@@ -8,6 +8,11 @@
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -15,6 +20,7 @@
       self,
       nixpkgs,
       treefmt-nix,
+      rust-overlay,
     }:
     let
       supportedSystems = [
@@ -27,16 +33,12 @@
         f:
         nixpkgs.lib.genAttrs supportedSystems (
           system:
-          f (
-            let
-              pkgs = import nixpkgs {
-                inherit system;
-              };
-            in
-            {
-              inherit pkgs;
-            }
-          )
+          f ({
+            pkgs = import nixpkgs {
+              inherit system;
+              overlays = [ (import rust-overlay) ];
+            };
+          })
         );
     in
     {
@@ -47,8 +49,13 @@
         { pkgs }:
         {
           default = pkgs.mkShell {
-            # nativeBuildInputs = [ pkgs.rustPlatform ];
-            # buildInputs = [ pkgs.rustPlatform ];
+            packages = with pkgs; [
+              pkg-config
+              (rust-bin.nightly.latest.default.override
+              {
+                extensions = [ "rust-src" ];
+              })
+            ];
           };
         }
       );
@@ -58,13 +65,23 @@
           default = (
             let
               manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
-              rustPlatform = pkgs.rustPlatform;
+              rustPlatform = pkgs.makeRustPlatform {
+                cargo = pkgs.rust-bin.nightly.latest.minimal.override {
+                  extensions = [ "rust-src" ];
+                };
+                rustc = pkgs.rust-bin.nightly.latest.minimal.override {
+                  extensions = [ "rust-src" ];
+                };
+              };
             in
             rustPlatform.buildRustPackage {
               pname = manifest.name;
               version = manifest.version;
               cargoLock.lockFile = ./Cargo.lock;
               src = pkgs.lib.cleanSource ./.;
+              env = {
+                RUSTFLAGS = "-C target-cpu=native";
+              };
             }
           );
         }
